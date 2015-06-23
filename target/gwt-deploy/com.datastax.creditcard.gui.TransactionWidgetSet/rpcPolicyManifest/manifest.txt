@@ -1,2 +1,0 @@
-# Module com.datastax.creditcard.gui.TransactionWidgetSet
-# RPC service class, partial path of RPC policy file
