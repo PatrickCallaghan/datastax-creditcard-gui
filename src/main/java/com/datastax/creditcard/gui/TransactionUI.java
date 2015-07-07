@@ -47,8 +47,8 @@ public class TransactionUI extends UI {
 	Button confirm = new Button("Confirm");
 	Label status = new Label("");
 
+	TextField userIdF = new TextField("User");
 	TextField issuerF = new TextField("Issuer");
-	TextField location = new TextField("Location");
 	TextField amount = new TextField("Amount");
 
 	DateTime transactionDate = DateTime.now();
@@ -66,9 +66,9 @@ public class TransactionUI extends UI {
 	protected void init(VaadinRequest request) {
 		
 		this.issuerId = "Issuer" + new Double(Math.random() * NO_OF_ISSUERS).intValue();
-		this.userId = "" + new Double(Math.random() * 10).intValue();
+		this.userIdF.setValue("" + new Double(Math.random() * 5).intValue());
 		this.issuer = this.service.getIssuerById(issuerId);
-		this.user = this.service.getUserById(userId);
+		this.user = this.service.getUserById(userIdF.getValue());
 
 		configureComponents();
 		buildLayout();
@@ -77,7 +77,7 @@ public class TransactionUI extends UI {
 	private void buildLayout() {
 
 		confirm.setVisible(false);
-		Label ccNo = new Label("Transaction for " + user.getCreditCardNo());
+		Label ccNo = new Label("Transaction for " + userIdF.getValue());
 		ccNo.setStyleName("h2");
 
 		FormLayout form = new FormLayout();
@@ -88,7 +88,7 @@ public class TransactionUI extends UI {
 		actions.setSpacing(true);
 		amount.setNullSettingAllowed(false);
 
-		form.addComponents(issuerF, location, amount, actions);
+		form.addComponents(userIdF, issuerF, amount, actions);
 		
 		VerticalLayout mainLayout = new VerticalLayout(ccNo, form);
 		mainLayout.setSpacing(true);
@@ -103,23 +103,28 @@ public class TransactionUI extends UI {
 					displayNotification("Amount is needed");
 					return;
 				}
+								
+				issuer = service.getIssuerById(issuerF.getValue());
+				user = service.getUserById(userIdF.getValue());
 				
 				double amountValue = new Double(amount.getValue());
 				Map<String, Double> items = new HashMap<String, Double>();
 				items.put("item0", amountValue);
+				
+				t.setLocation(issuer.getLocation());
+				t.setIssuer(issuer.getId());
+				t.setCreditCardNo(user.getCreditCardNo());
+				t.setUserId(user.getUserId());		
 				t.setAmount(amountValue);
 				t.setItems(items);
 				t.setStatus(Status.APPROVED.toString());
-				t = service.checkTransaction(t);
+
+				t = service.processTransaction(t);
 								
 				if (t.getStatus().equals(Status.CLIENT_APPROVAL.toString())){
 					displayNotification("Approval Needed for " + t.getAmount() + " at " + t.getIssuer() + "-" + t.getLocation());
 					confirm.setVisible(true);
-					
-				}else if (t.getStatus().equals(Status.CHECK.toString())){
-					displayNotification("Checking");
-					confirm.setVisible(false);
-					
+
 					int count = 0;					
 					Transaction pendingT = service.getTransaction(t.getTransactionId());
 					while (pendingT.getStatus().equals(Status.CHECK.toString())){
@@ -130,9 +135,31 @@ public class TransactionUI extends UI {
 							break;
 						}
 						pendingT = service.getTransaction(t.getTransactionId());
+						displayNotification("Checking", 1000);
+					}
+
+				}else if (t.getStatus().equals(Status.CHECK.toString())){
+					displayNotification("Checking");
+					confirm.setVisible(false);
+										
+					int count = 0;					
+					Transaction pendingT = service.getTransaction(t.getTransactionId());
+					while (pendingT.getStatus().equals(Status.CHECK.toString())){
+						
+						sleep(1000);
+						
+						if (count++ > TIMEOUT_IN_SEC){
+							displayNotification("Transaction failed due to Timeout");
+							confirm.setVisible(false);
+							pendingT.setStatus(Status.CLIENT_DECLINED.toString());
+							break;
+						}
+						pendingT = service.getTransaction(t.getTransactionId());
 					}
 					
-					if (pendingT.getStatus().equals(Status.APPROVED.toString())){
+					if (pendingT.getStatus().equals(Status.APPROVED.toString()) 
+							|| pendingT.getStatus().equals(Status.CLIENT_APPROVED.toString())){
+						
 						displayNotification("Transaction Approved");
 						confirm.setVisible(false);
 						resetTransaction();
@@ -140,11 +167,7 @@ public class TransactionUI extends UI {
 					}else if (pendingT.getStatus().equals(Status.DECLINED.toString())){
 						displayNotification("Transaction Declined");
 						confirm.setVisible(false);
-						resetTransaction();
-					
-					}else{									
-						displayNotification("Transaction failed due to Timeout");
-						confirm.setVisible(false);
+						resetTransaction();					
 					}
 					
 				}else if (t.getStatus().equals(Status.APPROVED.toString())){
@@ -186,11 +209,15 @@ public class TransactionUI extends UI {
 		});
 	}
 	
-	private void displayNotification (String msg){
+	private void displayNotification (String msg, int delay){
 		
 		Notification n = new Notification(msg,Type.HUMANIZED_MESSAGE);
-		n.setDelayMsec(2500);
+		n.setDelayMsec(delay);
 		n.show(Page.getCurrent());
+	}
+
+	private void displayNotification (String msg){
+		this.displayNotification(msg, 2500);
 	}
 
 	private void configureComponents() {
@@ -206,8 +233,6 @@ public class TransactionUI extends UI {
 		t.setCreditCardNo(user.getCreditCardNo());
 		t.setUserId(user.getUserId());		
 		
-		this.issuerF.setValue(issuer.getId());
-		this.location.setValue(issuer.getLocation());
 		this.amount.setValue("");
 
 		amount.focus();

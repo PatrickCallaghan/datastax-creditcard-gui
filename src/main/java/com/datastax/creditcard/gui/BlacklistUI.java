@@ -3,8 +3,10 @@ package com.datastax.creditcard.gui;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.servlet.annotation.WebServlet;
 
@@ -54,7 +56,7 @@ public class BlacklistUI extends UI {
 	HorizontalLayout mainLayout;
 
 	IndexedContainer container;
-	CreditCardService service = new CreditCardService();
+	CreditCardService service = new CreditCardService("52.27.155.65");
 
 	List<Transaction> transactions = new ArrayList<Transaction>();
 
@@ -263,9 +265,16 @@ public class BlacklistUI extends UI {
 
 		if  (refresh){
 			transactions = newTransactions;			
+		}else if (newTransactions.size() == this.transactions.size()) {
+			//Check the number of each status in the new Transactions
+			if (checkBatchSizesChanged(newTransactions, transactions)){
+				transactions = newTransactions;
+			}else{
+				return;
+			}
 		}else if (newTransactions.size() != this.transactions.size()) {
 			transactions = newTransactions;			
-		} else {
+		}else {
 			return;
 		}
 
@@ -290,6 +299,49 @@ public class BlacklistUI extends UI {
 
 		transactionList.setContainerDataSource(container);
 		transactionForm.setVisible(false);
+	}
+
+	private boolean checkBatchSizesChanged(List<Transaction> newTransactions, List<Transaction> oldTransactions) {
+		Map<String, Integer> sizeOfNewStatues = new HashMap<String, Integer>();
+		Map<String, Integer> sizeOfOldStatues = new HashMap<String, Integer>();
+
+		
+		for (Transaction transaction : newTransactions){
+			
+			if(sizeOfNewStatues.containsKey(transaction.getStatus())){
+				int count = sizeOfNewStatues.get(transaction.getStatus());
+				sizeOfNewStatues.put(transaction.getStatus(), count+1);
+			}else{			
+				sizeOfNewStatues.put(transaction.getStatus(), 1);
+			}
+		}
+
+		for (Transaction transaction : oldTransactions){
+			
+			if(sizeOfOldStatues.containsKey(transaction.getStatus())){
+				int count = sizeOfOldStatues.get(transaction.getStatus());
+				sizeOfOldStatues.put(transaction.getStatus(), count+1);
+			}else{			
+				sizeOfOldStatues.put(transaction.getStatus(), 1);
+			}
+		}
+				
+		Set<String> keySet = sizeOfNewStatues.keySet();
+		Iterator<String> iterator = keySet.iterator();
+		
+		while(iterator.hasNext()){
+			
+			String status = iterator.next();
+			Integer countNew =  sizeOfNewStatues.get(status);
+			Integer countOld =  sizeOfOldStatues.get(status);
+			
+			//Should be in New as we are going over the keys in new.
+			if (countOld == null || countOld != countNew){
+				return true;
+			}			
+		}
+
+		return false;
 	}
 
 	private boolean somethingUIhappending() {

@@ -165,12 +165,12 @@ public class DashboardUI extends UI {
 		Configuration conf = countByDayChart.getConfiguration();
 
 		conf.setTitle("Count By Day");
-
 		conf.setTitle("Transactions Total per day");
 		conf.setSubTitle("");
 
 		XAxis x = new XAxis();
 		x.setCategories(getDaysCategories());
+		x.setTitle("");
 		conf.addxAxis(x);
 
 		YAxis y = new YAxis();
