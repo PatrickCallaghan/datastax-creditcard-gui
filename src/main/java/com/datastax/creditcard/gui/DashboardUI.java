@@ -109,16 +109,14 @@ public class DashboardUI extends UI {
 		this.transactions = service.getBlacklistTransactions(this.transactionDate.toDate());
 		this.totalNoOfTransactions = service.getTotalNoOfTransactions(10);
 
-		System.out.println(totalNoOfTransactions);
-
 		this.populateStatusCountChart();
 		this.populateCountDayChart();
 	}
 
 	public void createStatusCountChart() {
 
-		statusChart.setWidth("350px");
-		statusChart.setHeight("200px");
+		statusChart.setWidth("75%");
+		statusChart.setHeight("50%");
 	}
 
 	private void populateStatusCountChart() {
@@ -147,7 +145,6 @@ public class DashboardUI extends UI {
 					count++;
 				}
 			}
-			System.out.println("status.toString(), count:" + status.toString() + "-" + count);
 			series.add(new DataSeriesItem(status.toString(), count));
 		}
 
@@ -157,8 +154,8 @@ public class DashboardUI extends UI {
 
 	public void createCountDayChart() {
 
-		countByDayChart.setWidth("350px");
-		countByDayChart.setHeight("200px");
+		countByDayChart.setWidth("75%");
+		countByDayChart.setHeight("50%");
 	}
 
 	private void populateCountDayChart() {

@@ -4,12 +4,14 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.servlet.annotation.WebServlet;
 
 import org.joda.time.DateTime;
 
-import com.datastax.creditcard.model.Issuer;
+import com.datastax.creditcard.model.Merchant;
 import com.datastax.creditcard.model.Transaction;
 import com.datastax.creditcard.model.Transaction.Status;
 import com.datastax.creditcard.model.User;
@@ -53,6 +55,7 @@ public class TransactionUI extends UI {
 
 	DateTime transactionDate = DateTime.now();
 	CreditCardService service = new CreditCardService();
+	ExecutorService executor = Executors.newCachedThreadPool();
 
 	Transaction t;
 
@@ -60,14 +63,14 @@ public class TransactionUI extends UI {
 	private String userId;
 
 	private User user;
-	private Issuer issuer;
+	private Merchant merchant;
 
 	@Override
 	protected void init(VaadinRequest request) {
-		
+
 		this.issuerId = "Issuer" + new Double(Math.random() * NO_OF_ISSUERS).intValue();
 		this.userIdF.setValue("" + new Double(Math.random() * 5).intValue());
-		this.issuer = this.service.getIssuerById(issuerId);
+		this.merchant = this.service.getMerchantById(issuerId);
 		this.user = this.service.getUserById(userIdF.getValue());
 
 		configureComponents();
@@ -89,7 +92,7 @@ public class TransactionUI extends UI {
 		amount.setNullSettingAllowed(false);
 
 		form.addComponents(userIdF, issuerF, amount, actions);
-		
+
 		VerticalLayout mainLayout = new VerticalLayout(ccNo, form);
 		mainLayout.setSpacing(true);
 		setContent(mainLayout);
@@ -99,85 +102,48 @@ public class TransactionUI extends UI {
 			@Override
 			public void buttonClick(ClickEvent event) {
 
-				if (amount.getValue() == null || amount.getValue().equals("")){
+				if (amount.getValue() == null || amount.getValue().equals("")) {
 					displayNotification("Amount is needed");
 					return;
 				}
-								
-				issuer = service.getIssuerById(issuerF.getValue());
-				user = service.getUserById(userIdF.getValue());
 				
+				merchant = service.getMerchantById(issuerF.getValue());
+				user = service.getUserById(userIdF.getValue());
+
 				double amountValue = new Double(amount.getValue());
 				Map<String, Double> items = new HashMap<String, Double>();
 				items.put("item0", amountValue);
-				
-				t.setLocation(issuer.getLocation());
-				t.setIssuer(issuer.getId());
+
+				t.setLocation(merchant.getLocation());
+				t.setMerchant(merchant.getId());
 				t.setCreditCardNo(user.getCreditCardNo());
-				t.setUserId(user.getUserId());		
+				t.setUserId(user.getUserId());
 				t.setAmount(amountValue);
 				t.setItems(items);
 				t.setStatus(Status.APPROVED.toString());
 
 				t = service.processTransaction(t);
-								
-				if (t.getStatus().equals(Status.CLIENT_APPROVAL.toString())){
-					displayNotification("Approval Needed for " + t.getAmount() + " at " + t.getIssuer() + "-" + t.getLocation());
+
+				if (t.getStatus().equals(Status.CLIENT_APPROVAL.toString())) {
+					displayNotification(t.getNotes());
 					confirm.setVisible(true);
 
-					int count = 0;					
-					Transaction pendingT = service.getTransaction(t.getTransactionId());
-					while (pendingT.getStatus().equals(Status.CHECK.toString())){
-						
-						sleep(1000);
-						
-						if (count++ > TIMEOUT_IN_SEC){
-							break;
-						}
-						pendingT = service.getTransaction(t.getTransactionId());
-						displayNotification("Checking", 1000);
-					}
+					TransactionWaiter waiter = new TransactionWaiter();					
+					new Thread(waiter);
+				}
 
-				}else if (t.getStatus().equals(Status.CHECK.toString())){
+				if (t.getStatus().equals(Status.CHECK.toString())) {
 					displayNotification("Checking");
 					confirm.setVisible(false);
-										
-					int count = 0;					
-					Transaction pendingT = service.getTransaction(t.getTransactionId());
-					while (pendingT.getStatus().equals(Status.CHECK.toString())){
-						
-						sleep(1000);
-						
-						if (count++ > TIMEOUT_IN_SEC){
-							displayNotification("Transaction failed due to Timeout");
-							confirm.setVisible(false);
-							pendingT.setStatus(Status.CLIENT_DECLINED.toString());
-							break;
-						}
-						pendingT = service.getTransaction(t.getTransactionId());
-					}
-					
-					if (pendingT.getStatus().equals(Status.APPROVED.toString()) 
-							|| pendingT.getStatus().equals(Status.CLIENT_APPROVED.toString())){
-						
-						displayNotification("Transaction Approved");
-						confirm.setVisible(false);
-						resetTransaction();
-						
-					}else if (pendingT.getStatus().equals(Status.DECLINED.toString())){
-						displayNotification("Transaction Declined");
-						confirm.setVisible(false);
-						resetTransaction();					
-					}
-					
-				}else if (t.getStatus().equals(Status.APPROVED.toString())){
+
+					TransactionWaiter waiter = new TransactionWaiter();					
+					new Thread(waiter);
+
+				} else if (t.getStatus().equals(Status.APPROVED.toString())) {
 					displayNotification("Transaction Approved");
 					confirm.setVisible(false);
 					resetTransaction();
-				}else{
-					displayNotification("Status : " + t.getStatus().toString());
-					confirm.setVisible(true);
-				}				
+				}
 			}
 		});
 
@@ -187,36 +153,36 @@ public class TransactionUI extends UI {
 			public void buttonClick(ClickEvent event) {
 
 				System.out.println("Confirming : " + t.toString());
-				t.setStatus(Status.CLIENT_APPROVED.toString());				
+				t.setStatus(Status.CLIENT_APPROVED.toString());
 				Transaction result = service.processTransaction(t);
-				
-				if (result.getStatus().equals(Transaction.Status.DECLINED.toString())){
-					confirm.setVisible(false);	
-					displayNotification("Transaction " + t.getTransactionId() + " failed due to " + t.getNotes());
-					
-				}else if (result.getStatus().equals(Transaction.Status.APPROVED.toString()) || 
-						result.getStatus().equals(Transaction.Status.CLIENT_APPROVED.toString())){
-					
+
+				if (result.getStatus().equals(Transaction.Status.DECLINED.toString())) {
 					confirm.setVisible(false);
-					displayNotification("Transaction " + t.getTransactionId() + " approved.");					
-				}else{
+					displayNotification("Transaction " + t.getTransactionId() + " failed due to " + t.getNotes());
+
+				} else if (result.getStatus().equals(Transaction.Status.APPROVED.toString())
+						|| result.getStatus().equals(Transaction.Status.CLIENT_APPROVED.toString())) {
+
+					confirm.setVisible(false);
+					displayNotification("Transaction " + t.getTransactionId() + " approved.");
+				} else {
 					displayNotification("Transaction " + t.getTransactionId() + ".");
 				}
-				
-				//Reseting after confirm.
+
+				// Reseting after confirm.
 				resetTransaction();
 			}
 		});
 	}
-	
-	private void displayNotification (String msg, int delay){
-		
-		Notification n = new Notification(msg,Type.HUMANIZED_MESSAGE);
+
+	private void displayNotification(String msg, int delay) {
+
+		Notification n = new Notification(msg, Type.HUMANIZED_MESSAGE);
 		n.setDelayMsec(delay);
 		n.show(Page.getCurrent());
 	}
 
-	private void displayNotification (String msg){
+	private void displayNotification(String msg) {
 		this.displayNotification(msg, 2500);
 	}
 
@@ -228,11 +194,11 @@ public class TransactionUI extends UI {
 		t = new Transaction();
 		t.setTransactionTime(new Date());
 		t.setTransactionId(UUID.randomUUID().toString());
-		t.setLocation(issuer.getLocation());
-		t.setIssuer(issuer.getId());
+		t.setLocation(merchant.getLocation());
+		t.setMerchant(merchant.getId());
 		t.setCreditCardNo(user.getCreditCardNo());
-		t.setUserId(user.getUserId());		
-		
+		t.setUserId(user.getUserId());
+
 		this.amount.setValue("");
 
 		amount.focus();
@@ -243,6 +209,46 @@ public class TransactionUI extends UI {
 			Thread.sleep(i);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
+		}
+	}
+
+	class TransactionWaiter implements Runnable {
+
+		@Override
+		public void run(){
+			int count = 0;
+			Transaction pendingT = service.getTransaction(t.getTransactionId());
+
+			while (pendingT.getStatus().equals(Status.CHECK.toString())
+					|| pendingT.getStatus().equals(Status.CLIENT_APPROVAL.toString())) {
+
+				sleep(1000);
+
+				if (count++ > TIMEOUT_IN_SEC) {
+					displayNotification("Transaction failed due to Timeout");
+					confirm.setVisible(false);
+					pendingT.setStatus(Status.DECLINED.toString());
+
+					break;
+				}
+				pendingT = service.getTransaction(t.getTransactionId());
+				
+			}
+			
+			if (pendingT.getStatus().equals(Status.APPROVED.toString())
+					|| pendingT.getStatus().equals(Status.CLIENT_APPROVED.toString())) {
+
+				displayNotification("Transaction Approved");
+				confirm.setVisible(false);
+				resetTransaction();				
+				System.out.println("Transaction Approved");
+
+			} else if (pendingT.getStatus().equals(Status.DECLINED.toString())) {
+				displayNotification("Transaction Declined");
+				confirm.setVisible(false);
+				resetTransaction();
+				System.out.println("Transaction Declined");
+			}
 		}
 	}
 

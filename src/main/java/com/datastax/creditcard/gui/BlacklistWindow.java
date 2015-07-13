@@ -5,7 +5,7 @@ import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.creditcard.model.Issuer;
+import com.datastax.creditcard.model.Merchant;
 import com.datastax.creditcard.model.User;
 import com.vaadin.ui.Button;
 import com.vaadin.ui.Button.ClickEvent;
@@ -44,16 +44,16 @@ public class BlacklistWindow extends Window {
         ok = new Button("Add");        
 	}
 	
-    public BlacklistWindow(Issuer issuer) {
+    public BlacklistWindow(final Merchant merchant) {
     	this();
         ok.addClickListener(new ClickListener() {
 
 			@Override
 			public void buttonClick(ClickEvent event) {
-				getUI().service.insertBlacklistIssuer(new Date(), issuer.getId(), issuer.getLocation(), new Double(amountField.getValue()));
+				getUI().service.insertBlacklistMerchant(new Date(), merchant.getId(), merchant.getLocation(), new Double(amountField.getValue()));
 				close();
 				
-				String msg = String.format("Created blacklist rules for issuer : '%s' in '%s'", issuer.getId(), issuer.getLocation());
+				String msg = String.format("Created blacklist rules for issuer : '%s' in '%s'", merchant.getId(), merchant.getLocation());
 	            Notification.show(msg,Type.HUMANIZED_MESSAGE);
 			}
         });
@@ -61,7 +61,7 @@ public class BlacklistWindow extends Window {
         logger.info("Issuer Blacklist ready");
     }
     
-    public BlacklistWindow(User user) {
+    public BlacklistWindow(final User user) {
     	this();
         ok.addClickListener(new ClickListener() {
 

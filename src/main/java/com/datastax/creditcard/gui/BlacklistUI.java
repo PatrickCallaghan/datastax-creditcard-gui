@@ -13,6 +13,7 @@ import javax.servlet.annotation.WebServlet;
 import org.joda.time.DateTime;
 
 import com.datastax.creditcard.model.Transaction;
+import com.datastax.creditcard.model.Transaction.Status;
 import com.datastax.creditcard.services.CreditCardService;
 import com.vaadin.annotations.Push;
 import com.vaadin.annotations.Theme;
@@ -24,11 +25,12 @@ import com.vaadin.data.Property.ValueChangeEvent;
 import com.vaadin.data.Property.ValueChangeListener;
 import com.vaadin.data.util.IndexedContainer;
 import com.vaadin.data.util.filter.SimpleStringFilter;
-import com.vaadin.event.SelectionEvent;
-import com.vaadin.event.SelectionEvent.SelectionListener;
+import com.vaadin.event.ItemClickEvent;
+import com.vaadin.event.ItemClickEvent.ItemClickListener;
 import com.vaadin.server.Responsive;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.server.VaadinServlet;
+import com.vaadin.shared.ui.MarginInfo;
 import com.vaadin.ui.DateField;
 import com.vaadin.ui.Grid;
 import com.vaadin.ui.Grid.HeaderCell;
@@ -52,11 +54,11 @@ public class BlacklistUI extends UI {
 
 	TransactionForm transactionForm = new TransactionForm();
 	UserForm userForm = new UserForm();
-	IssuerForm issuerForm = new IssuerForm();
+	MerchantForm issuerForm = new MerchantForm();
 	HorizontalLayout mainLayout;
 
 	IndexedContainer container;
-	CreditCardService service = new CreditCardService("52.27.155.65");
+	CreditCardService service = new CreditCardService();
 
 	List<Transaction> transactions = new ArrayList<Transaction>();
 
@@ -89,21 +91,32 @@ public class BlacklistUI extends UI {
 		transactionList.removeColumn("items");
 		transactionList.removeColumn("notes");
 		transactionList.setSelectionMode(Grid.SelectionMode.SINGLE);
-		transactionList.addSelectionListener(new SelectionListener() {
+		transactionList.addItemClickListener(new ItemClickListener() {
 
 			@Override
-			public void select(SelectionEvent event) {
+			public void itemClick(ItemClickEvent event) {
 				Item item = transactionList.getContainerDataSource().getItem(transactionList.getSelectedRow());
 
 				if (item != null) {
 					Transaction transaction = service.getTransaction(item.getItemProperty("transactionId").getValue()
 							.toString());
-					transactionForm.edit(transaction);
-					userForm.view(service.getUserById(transaction.getUserId()));
-					userForm.setVisible(false);
 
-					issuerForm.view(service.getIssuerById(transaction.getIssuer()));
-					issuerForm.setVisible(false);
+					transactionForm.setVisible(false);
+					System.out.println("Checking " + transaction.getStatus());
+					
+					if (!transaction.getStatus().equals(Status.APPROVED.toString())
+							&& !transaction.getStatus().equals(Status.CLIENT_APPROVED.toString())
+							&& !transaction.getStatus().equals(Status.DECLINED.toString()) || event.isDoubleClick()) {
+						
+						System.out.println("Checked " + transaction.getStatus());
+						
+						transactionForm.edit(transaction);
+						userForm.view(service.getUserById(transaction.getUserId()));
+						userForm.setVisible(false);
+
+						issuerForm.view(service.getMerchantById(transaction.getMerchant()));
+						issuerForm.setVisible(false);
+					}
 				}
 			}
 		});
@@ -161,18 +174,19 @@ public class BlacklistUI extends UI {
 	@SuppressWarnings("deprecation")
 	private void buildLayout() {
 
-		Label label = new Label("Transactions     ");
+		Label label = new Label("Blacklist Transactions");
 		label.setStyleName("h1");
 		label.setWidth("100%");
+		label.setHeight("40");
 
-		Label labelDate = new Label("   Date : ");
+		Label labelDate = new Label("Date : ");
 		labelDate.setStyleName("h3");
 
 		DateField date = new DateField();
 		date.setValue(transactionDate.toDate());
 		date.setDateFormat("yyyy-MM-dd");
+		
 		date.addListener(new ValueChangeListener() {
-
 			@Override
 			public void valueChange(ValueChangeEvent event) {
 				transactionDate = new DateTime(date.getValue());
@@ -181,12 +195,14 @@ public class BlacklistUI extends UI {
 		});
 
 		HorizontalLayout dateLayout = new HorizontalLayout(labelDate, date);
-		dateLayout.setMargin(true);
-		HorizontalLayout top = new HorizontalLayout(label, dateLayout);
-		top.setMargin(true);
-
+		dateLayout.setHeight("40");
+		VerticalLayout top = new VerticalLayout(label, dateLayout);
+		
 		VerticalLayout left = new VerticalLayout(top, transactionList);
 		Responsive.makeResponsive(left);
+		left.setMargin(true);
+		
+		
 		left.setSizeFull();
 		transactionList.setSizeFull();
 
@@ -230,6 +246,7 @@ public class BlacklistUI extends UI {
 
 		HorizontalLayout mainLayout = new HorizontalLayout(issuerLayout, issuerForm);
 		mainLayout.setSizeFull();
+		mainLayout.setMargin(new MarginInfo(false, true, false, true));
 		mainLayout.setExpandRatio(issuerLayout, 1);
 
 		// Split and allow resizing
@@ -263,18 +280,18 @@ public class BlacklistUI extends UI {
 
 		List<Transaction> newTransactions = service.getBlacklistTransactions(this.transactionDate.toDate());
 
-		if  (refresh){
-			transactions = newTransactions;			
-		}else if (newTransactions.size() == this.transactions.size()) {
-			//Check the number of each status in the new Transactions
-			if (checkBatchSizesChanged(newTransactions, transactions)){
+		if (refresh) {
+			transactions = newTransactions;
+		} else if (newTransactions.size() == this.transactions.size()) {
+			// Check the number of each status in the new Transactions
+			if (checkBatchSizesChanged(newTransactions, transactions)) {
 				transactions = newTransactions;
-			}else{
+			} else {
 				return;
 			}
-		}else if (newTransactions.size() != this.transactions.size()) {
-			transactions = newTransactions;			
-		}else {
+		} else if (newTransactions.size() != this.transactions.size()) {
+			transactions = newTransactions;
+		} else {
 			return;
 		}
 
@@ -289,7 +306,7 @@ public class BlacklistUI extends UI {
 			newItem.getItemProperty("creditCardNo").setValue(t.getCreditCardNo());
 			newItem.getItemProperty("transactionTime").setValue(t.getTransactionTime());
 			newItem.getItemProperty("transactionId").setValue(t.getTransactionId());
-			newItem.getItemProperty("issuer").setValue(t.getIssuer());
+			newItem.getItemProperty("issuer").setValue(t.getMerchant());
 			newItem.getItemProperty("location").setValue(t.getLocation());
 			newItem.getItemProperty("amount").setValue(t.getAmount());
 			newItem.getItemProperty("status").setValue(t.getStatus());
@@ -305,40 +322,39 @@ public class BlacklistUI extends UI {
 		Map<String, Integer> sizeOfNewStatues = new HashMap<String, Integer>();
 		Map<String, Integer> sizeOfOldStatues = new HashMap<String, Integer>();
 
-		
-		for (Transaction transaction : newTransactions){
-			
-			if(sizeOfNewStatues.containsKey(transaction.getStatus())){
+		for (Transaction transaction : newTransactions) {
+
+			if (sizeOfNewStatues.containsKey(transaction.getStatus())) {
 				int count = sizeOfNewStatues.get(transaction.getStatus());
-				sizeOfNewStatues.put(transaction.getStatus(), count+1);
-			}else{			
+				sizeOfNewStatues.put(transaction.getStatus(), count + 1);
+			} else {
 				sizeOfNewStatues.put(transaction.getStatus(), 1);
 			}
 		}
 
-		for (Transaction transaction : oldTransactions){
-			
-			if(sizeOfOldStatues.containsKey(transaction.getStatus())){
+		for (Transaction transaction : oldTransactions) {
+
+			if (sizeOfOldStatues.containsKey(transaction.getStatus())) {
 				int count = sizeOfOldStatues.get(transaction.getStatus());
-				sizeOfOldStatues.put(transaction.getStatus(), count+1);
-			}else{			
+				sizeOfOldStatues.put(transaction.getStatus(), count + 1);
+			} else {
 				sizeOfOldStatues.put(transaction.getStatus(), 1);
 			}
 		}
-				
+
 		Set<String> keySet = sizeOfNewStatues.keySet();
 		Iterator<String> iterator = keySet.iterator();
-		
-		while(iterator.hasNext()){
-			
+
+		while (iterator.hasNext()) {
+
 			String status = iterator.next();
-			Integer countNew =  sizeOfNewStatues.get(status);
-			Integer countOld =  sizeOfOldStatues.get(status);
-			
-			//Should be in New as we are going over the keys in new.
-			if (countOld == null || countOld != countNew){
+			Integer countNew = sizeOfNewStatues.get(status);
+			Integer countOld = sizeOfOldStatues.get(status);
+
+			// Should be in New as we are going over the keys in new.
+			if (countOld == null || countOld != countNew) {
 				return true;
-			}			
+			}
 		}
 
 		return false;

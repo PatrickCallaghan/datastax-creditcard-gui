@@ -1,6 +1,6 @@
 package com.datastax.creditcard.gui;
 
-import com.datastax.creditcard.model.Issuer;
+import com.datastax.creditcard.model.Merchant;
 import com.vaadin.data.fieldgroup.BeanFieldGroup;
 import com.vaadin.event.ShortcutAction;
 import com.vaadin.ui.Button;
@@ -11,7 +11,7 @@ import com.vaadin.ui.HorizontalLayout;
 import com.vaadin.ui.TextField;
 import com.vaadin.ui.themes.ValoTheme;
 
-public class IssuerForm extends FormLayout {
+public class MerchantForm extends FormLayout {
 
 	Button back = new Button("back");
     Button blacklist = new Button("blackList");
@@ -20,12 +20,12 @@ public class IssuerForm extends FormLayout {
     TextField name = new TextField("Name");
     TextField location = new TextField("Location");
     
-    Issuer issuer;
+    Merchant merchant;
 
     // Easily bind forms to beans and manage validation and buffering
-    BeanFieldGroup<Issuer> formFieldBindings;
+    BeanFieldGroup<Merchant> formFieldBindings;
 
-    public IssuerForm() {
+    public MerchantForm() {
     	
     	back.addClickListener(new ClickListener() {			
 			@Override
@@ -36,8 +36,7 @@ public class IssuerForm extends FormLayout {
 		});
     	blacklist.addClickListener(new ClickListener() {
     	    public void buttonClick(ClickEvent event) {
-    	        BlacklistWindow sub = new BlacklistWindow(issuer);
-    	        
+    	        BlacklistWindow sub = new BlacklistWindow(merchant);    	        
     	        // Add it to the root component
     	        getUI().addWindow(sub);
     	    }
@@ -69,10 +68,10 @@ public class IssuerForm extends FormLayout {
 		addComponents(actions, id, name, location);		
     }
 
-    void view(Issuer issuer) {
-        this.issuer = issuer;
-        if(issuer != null) {
-            formFieldBindings = BeanFieldGroup.bindFieldsBuffered(issuer, this);
+    void view(Merchant merchant) {
+        this.merchant = merchant;
+        if(merchant != null) {
+            formFieldBindings = BeanFieldGroup.bindFieldsBuffered(merchant, this);
             
             id.setReadOnly(true);
             name.setReadOnly(true);
