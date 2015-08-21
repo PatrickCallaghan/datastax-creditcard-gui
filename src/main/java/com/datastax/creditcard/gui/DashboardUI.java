@@ -1,45 +1,15 @@
 package com.datastax.creditcard.gui;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import javax.servlet.annotation.WebServlet;
 
-import org.joda.time.DateTime;
-
-import com.datastax.creditcard.model.Transaction;
-import com.datastax.creditcard.model.Transaction.Status;
-import com.datastax.creditcard.services.CreditCardService;
-import com.vaadin.addon.charts.Chart;
-import com.vaadin.addon.charts.model.ChartType;
-import com.vaadin.addon.charts.model.Configuration;
-import com.vaadin.addon.charts.model.Cursor;
-import com.vaadin.addon.charts.model.DataSeries;
-import com.vaadin.addon.charts.model.DataSeriesItem;
-import com.vaadin.addon.charts.model.Labels;
-import com.vaadin.addon.charts.model.ListSeries;
-import com.vaadin.addon.charts.model.PlotOptionsColumn;
-import com.vaadin.addon.charts.model.PlotOptionsPie;
-import com.vaadin.addon.charts.model.Tooltip;
-import com.vaadin.addon.charts.model.XAxis;
-import com.vaadin.addon.charts.model.YAxis;
 import com.vaadin.annotations.Push;
 import com.vaadin.annotations.Theme;
 import com.vaadin.annotations.Title;
 import com.vaadin.annotations.VaadinServletConfiguration;
 import com.vaadin.annotations.Widgetset;
-import com.vaadin.server.Responsive;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.server.VaadinServlet;
-import com.vaadin.ui.Alignment;
-import com.vaadin.ui.HorizontalLayout;
-import com.vaadin.ui.Label;
-import com.vaadin.ui.Panel;
 import com.vaadin.ui.UI;
-import com.vaadin.ui.VerticalLayout;
 
 @Title("FraudUI")
 @Widgetset("com.datastax.creditcard.gui.TransactionWidgetSet")
@@ -47,7 +17,7 @@ import com.vaadin.ui.VerticalLayout;
 @Push
 public class DashboardUI extends UI {
 
-	private DateFormat dayMonthFormatter = new SimpleDateFormat("dd-MM");
+/*	private DateFormat dayMonthFormatter = new SimpleDateFormat("dd-MM");
 	private DateFormat dateFormatter = new SimpleDateFormat("yyyyMMdd");
 	Chart statusChart = new Chart(ChartType.PIE);
 	Chart countByDayChart = new Chart(ChartType.COLUMN);
@@ -61,13 +31,13 @@ public class DashboardUI extends UI {
 	DateTime transactionDate = DateTime.now();
 	List<Transaction> transactions = new ArrayList<Transaction>();
 	Map<String, Long> totalNoOfTransactions;
-
+*/
 	@Override
 	protected void init(VaadinRequest request) {
-		configureComponents();
-		buildLayout();
+		//configureComponents();
+		//buildLayout();
 	}
-
+/*
 	private void buildLayout() {
 
 		Label banner = new Label("Fraud Prevention Center");
@@ -221,7 +191,7 @@ public class DashboardUI extends UI {
 
 		return dates.toArray(new String[] {});
 	}
-
+*/
 	@WebServlet(urlPatterns = {"/dashboard/*","/VAADIN/*"})
 	@VaadinServletConfiguration(ui = DashboardUI.class, productionMode = false)
 	public static class DashboardServlet extends VaadinServlet {
